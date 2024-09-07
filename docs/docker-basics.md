@@ -23,8 +23,10 @@ A Docker image typically contains everything that is required to run the applica
     - Third party libraries
     - Environment Variables
 
-
-
+## Basic Commands
+Here are some basic docker commands:
+- Run a container
+`docker run -it ubuntu`
 
 
 
