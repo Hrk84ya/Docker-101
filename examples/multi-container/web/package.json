@@ -1,0 +1,13 @@
+{
+  "name": "multi-container-web",
+  "version": "1.0.0",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.0",
+    "pg": "^8.11.0",
+    "redis": "^4.6.0"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}
