@@ -1,79 +1,219 @@
-## Guide to Writing Dockerfiles
-### Introduction to Dockerfiles
-A Dockerfile is a text file that contains a set of instructions to build a Docker image. It defines the base image, environment settings, and commands needed to configure and run your application in a container. Writing a good Dockerfile ensures that your images are efficient, reproducible, and maintainable.
+# Dockerfile Guide
 
-This guide will cover the basic syntax, some best practices, and a few example Dockerfiles for different scenarios.
+## Introduction
 
-### Dockerfile Syntax
-A Dockerfile consists of a series of instructions, each specifying an action to perform. The most common instructions include:
+A Dockerfile is a text file containing instructions to build a Docker image. It defines the base image, environment settings, and commands needed to configure and run your application in a container.
 
-1. **FROM**<br>
-    - Specifies the base image from which your Docker image is built.<br>
-    - Syntax: ```FROM node:16-alpine```
+## Essential Instructions
 
-2. **WORKDIR**<br>
-    - Sets the working directory for any subsequent instructions. If the directory does not exist, it will be created.<br>
-    - Syntax: ```WORKDIR /app```
-3. **COPY**<br>
-    - Copies files from the host system to the container’s filesystem.<be>
-    - Syntax: ```COPY . .```
-4. **RUN**<br>
-    - Executes commands inside the container during the build process.<br>
-    - Syntax: ```RUN npm install```
-5. **CMD**<br>
-    - Specifies the command that will run when a container is started from the image. You can only have one CMD instruction per Dockerfile. If multiple CMD instructions are provided, only the last one is executed.
-    - Syntax: ```CMD ["node", "server.js"]```
-6. **EXPOSE**<br>
-    - Informs Docker that the container will listen on the specified network ports at runtime. This does not publish the port; it’s for documentation purposes.<br>
-    - Syntax: ```EXPOSE 3000```
-7. **ENV**<br>
-    - Sets environment variables in the container.<br>
-    - Syntax: ```ENV NODE_ENV=production```
-8. **ENTRYPOINT**<br>
-    - Similar to CMD, but it configures a container to run as an executable. Unlike CMD, ENTRYPOINT will always be executed, even if additional arguments are passed to docker run.<br>
-    - ENTRYPOINT ["npm", "start"]
+### FROM
+Specifies the base image for your Docker image.
+```dockerfile
+FROM node:18-alpine
+FROM python:3.11-slim
+```
 
-## Best Practices for Writing Dockerfiles<br>
-To create optimized and maintainable Dockerfiles, consider following these best practices:<br>
+### WORKDIR
+Sets the working directory for subsequent instructions.
+```dockerfile
+WORKDIR /app
+```
 
-1. **Use Official Base Images**<br>
-  - You can use official images whenever possible, as they are well-maintained and trusted.<br>
-  - FROM python:3.9-slim
-2. **Use Small Base Images**<br>
-  - Choose lightweight base images like alpine to reduce the size of the final image.<br>
-  - FROM node:16-alpine
-3. **Limit the Number of Layers**<br>
-  - Each RUN, COPY, or ADD command creates a new layer. Combine commands to reduce the number of layers.<br>
-  - #### Instead of separate RUN commands:
-    * RUN apt-get update
-    * RUN apt-get install -y curl
-  - #### Use this:
-    * RUN apt-get update && apt-get install -y curl
-4. **Leverage Caching**<br>
-  - Place frequently changing instructions like `COPY` and `RUN` commands towards the end of the Dockerfile to maximize the cache efficiency.<br>
+### COPY & ADD
+Copies files from host to container filesystem.
+```dockerfile
+COPY package*.json ./
+COPY . .
+ADD https://example.com/file.tar.gz /tmp/
+```
 
-5. **Use Multi-Stage Builds**<br>
-  - For applications with build steps (like compiling code), use multi-stage builds to reduce image size by only including the necessary artefacts in the final image.<br>
-  - #### Multi-stage build example
-    * FROM node:16-alpine AS builder
-    * WORKDIR /app
-    * COPY package*.json ./
-    * RUN npm install
-    * COPY . .
-    * RUN npm run build
+### RUN
+Executes commands during the build process.
+```dockerfile
+RUN npm install
+RUN apt-get update && apt-get install -y curl
+```
 
-  - #### Final stage
-    * FROM nginx:alpine
-    * COPY --from=builder /app/build /usr/share/nginx/html
-6. **Minimize the Number of Layers**<br>
-  - Each instruction in a Dockerfile creates a new layer. To keep your images lightweight, minimize unnecessary instructions.<br>
-    * RUN apt-get update && apt-get install -y \
-    * curl \
-    * vim
-7. **Add Metadata**<br>
-  - Include labels to add metadata to your images.<br>
-    * LABEL maintainer="your-email@example.com"
-8. **Avoid Hardcoding Values**<br>
-  - Where possible, use environment variables to avoid hardcoding values in the Dockerfile.<br>
-    * ENV APP_PORT=3000
-    * EXPOSE $APP_PORT
+### CMD vs ENTRYPOINT
+- **CMD**: Default command when container starts (can be overridden)
+- **ENTRYPOINT**: Always executed command (cannot be overridden)
+
+```dockerfile
+CMD ["node", "server.js"]
+ENTRYPOINT ["npm", "start"]
+```
+
+### EXPOSE
+Documents which ports the container listens on.
+```dockerfile
+EXPOSE 3000 8080
+```
+
+### ENV & ARG
+- **ENV**: Sets runtime environment variables
+- **ARG**: Sets build-time variables
+
+```dockerfile
+ARG NODE_VERSION=18
+ENV NODE_ENV=production
+ENV PORT=3000
+```
+
+## Best Practices
+
+### 1. Use Official Base Images
+```dockerfile
+# Good
+FROM node:18-alpine
+FROM python:3.11-slim
+
+# Avoid
+FROM ubuntu:latest
+```
+
+### 2. Optimize Layer Caching
+Place frequently changing instructions at the end.
+```dockerfile
+# Copy dependencies first
+COPY package*.json ./
+RUN npm install
+
+# Copy source code last
+COPY . .
+```
+
+### 3. Combine RUN Instructions
+```dockerfile
+# Good
+RUN apt-get update && \
+    apt-get install -y curl vim && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Avoid
+RUN apt-get update
+RUN apt-get install -y curl
+RUN apt-get install -y vim
+```
+
+### 4. Use Multi-Stage Builds
+```dockerfile
+# Build stage
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Production stage
+FROM node:18-alpine AS production
+WORKDIR /app
+COPY --from=builder /app/node_modules ./node_modules
+COPY . .
+CMD ["node", "server.js"]
+```
+
+### 5. Use .dockerignore
+Create a `.dockerignore` file to exclude unnecessary files:
+```
+node_modules
+.git
+*.md
+.env
+```
+
+### 6. Security Best Practices
+```dockerfile
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nextjs -u 1001
+
+# Switch to non-root user
+USER nextjs
+
+# Use specific versions
+FROM node:18.17.0-alpine
+```
+
+### 7. Health Checks
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+```
+
+## Complete Example
+
+```dockerfile
+# Multi-stage Node.js application
+FROM node:18-alpine AS base
+WORKDIR /app
+COPY package*.json ./
+
+# Development dependencies
+FROM base AS dev-deps
+RUN npm ci
+
+# Production dependencies
+FROM base AS prod-deps
+RUN npm ci --only=production
+
+# Build stage
+FROM dev-deps AS build
+COPY . .
+RUN npm run build
+
+# Production stage
+FROM node:18-alpine AS production
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
+# Copy production files
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY package*.json ./
+
+# Set ownership and switch user
+RUN chown -R nextjs:nodejs /app
+USER nextjs
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD node healthcheck.js
+
+EXPOSE 3000
+CMD ["node", "dist/server.js"]
+```
+
+## Common Patterns
+
+### Node.js Application
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+EXPOSE 3000
+CMD ["node", "server.js"]
+```
+
+### Python Flask Application
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+EXPOSE 5000
+CMD ["python", "app.py"]
+```
+
+### Static Website with Nginx
+```dockerfile
+FROM nginx:alpine
+COPY dist/ /usr/share/nginx/html/
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
